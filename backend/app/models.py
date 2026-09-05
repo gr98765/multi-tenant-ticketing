@@ -1,8 +1,13 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Enum, Boolean
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from .database import Base
 import enum
+
+
+class RoleEnum(str, enum.Enum):
+    OWNER = "OWNER"
+    MEMBER = "MEMBER"
 
 
 class SeverityEnum(str, enum.Enum):
@@ -18,11 +23,33 @@ class StatusEnum(str, enum.Enum):
     RESOLVED = "RESOLVED"
 
 
-class Service(Base):
-    __tablename__ = "services"
+class Organization(Base):
+    __tablename__ = "organizations"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
 
+    users = relationship("User", back_populates="organization")
+    services = relationship("Service", back_populates="organization")
+
+
+class User(Base):
+    __tablename__ = "users"
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    role = Column(Enum(RoleEnum), default=RoleEnum.MEMBER)
+    organization_id = Column(Integer, ForeignKey("organizations.id"))
+
+    organization = relationship("Organization", back_populates="users")
+
+
+class Service(Base):
+    __tablename__ = "services"
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    organization_id = Column(Integer, ForeignKey("organizations.id"))
+
+    organization = relationship("Organization", back_populates="services")
     releases = relationship("Release", back_populates="service")
     incidents = relationship("Incident", back_populates="service")
 
