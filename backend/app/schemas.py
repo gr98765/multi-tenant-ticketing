@@ -15,7 +15,7 @@ class ServiceOut(BaseModel):
     name: str
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---- Release ----
 
@@ -32,7 +32,7 @@ class ReleaseOut(BaseModel):
     deployed_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 # ---- Incident ----
 
@@ -55,13 +55,13 @@ class IncidentOut(BaseModel):
     resolved_at: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class IncidentStatusUpdate(BaseModel):
     status: StatusEnum
 
-# ---- Incident Update (timeline note) ----
+# ---- Incident Update (timeline) ----
 
 
 class IncidentUpdateCreate(BaseModel):
@@ -75,4 +75,16 @@ class IncidentUpdateOut(BaseModel):
     created_at: datetime
 
     class Config:
-        orm_mode = True
+        from_attributes = True
+
+
+class ServiceIncidentStats(BaseModel):
+    service_name: str
+    incident_count: int
+    avg_resolution_seconds: Optional[float]
+
+
+class DashboardSummary(BaseModel):
+    open_incidents: int
+    resolved_last_30_days: int
+    service_stats: list[ServiceIncidentStats]

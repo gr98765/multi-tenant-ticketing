@@ -1,9 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .database import Base, engine
-from .routers import auth
-
-Base.metadata.create_all(bind=engine)
+from .routers import auth, services, releases, incidents, dashboard
 
 app = FastAPI(title="Multi-Tenant Ticketing")
 
@@ -15,6 +12,10 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(services.router)
+app.include_router(releases.router)
+app.include_router(incidents.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/health")
