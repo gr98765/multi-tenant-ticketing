@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy.orm import Session
 from sqlalchemy import text
-from .. import models, schemas, auth
+from sqlalchemy.orm import Session
+
+from .. import auth, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -30,7 +31,8 @@ def get_dashboard(
         SELECT
             s.name AS service_name,
             COUNT(i.id) AS incident_count,
-            AVG(EXTRACT(EPOCH FROM (i.resolved_at - i.created_at))) AS avg_resolution_seconds
+            AVG(EXTRACT(EPOCH FROM (i.resolved_at - i.created_at)))
+                AS avg_resolution_seconds
         FROM services s
         LEFT JOIN incidents i
             ON i.service_id = s.id
@@ -38,7 +40,7 @@ def get_dashboard(
         WHERE s.organization_id = :org_id
         GROUP BY s.id, s.name
         ORDER BY incident_count DESC
-    """)
+        """)
     result = db.execute(sql, {"org_id": org_id})
     service_stats = [
         schemas.ServiceIncidentStats(

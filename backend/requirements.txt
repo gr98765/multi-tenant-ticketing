@@ -6,7 +6,7 @@ psycopg2-binary
 pydantic
 pytest
 httpx
-ruff
+ruff==0.9.6
 python-jose[cryptography]
 passlib==1.7.4
 bcrypt==4.0.1

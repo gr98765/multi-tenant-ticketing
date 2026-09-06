@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from .. import models, schemas, auth
+
+from .. import auth, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/releases", tags=["releases"])
@@ -33,7 +34,7 @@ def create_release(
     return db_release
 
 
-@router.get("/", response_model=List[schemas.ReleaseOut])
+@router.get("/", response_model=list[schemas.ReleaseOut])
 def list_releases(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),

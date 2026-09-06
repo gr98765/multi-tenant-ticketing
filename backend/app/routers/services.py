@@ -1,7 +1,8 @@
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from .. import models, schemas, auth
+
+from .. import auth, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/services", tags=["services"])
@@ -23,7 +24,7 @@ def create_service(
     return db_service
 
 
-@router.get("/", response_model=List[schemas.ServiceOut])
+@router.get("/", response_model=list[schemas.ServiceOut])
 def list_services(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),

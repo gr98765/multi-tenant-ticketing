@@ -1,8 +1,9 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
-from datetime import datetime
-from .. import models, schemas, auth
+
+from .. import auth, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -43,7 +44,7 @@ def create_incident(
     return db_incident
 
 
-@router.get("/", response_model=List[schemas.IncidentOut])
+@router.get("/", response_model=list[schemas.IncidentOut])
 def list_incidents(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -85,7 +86,7 @@ def add_incident_update(
     return db_update
 
 
-@router.get("/{incident_id}/updates", response_model=List[schemas.IncidentUpdateOut])
+@router.get("/{incident_id}/updates", response_model=list[schemas.IncidentUpdateOut])
 def list_incident_updates(
     incident_id: int,
     db: Session = Depends(get_db),
