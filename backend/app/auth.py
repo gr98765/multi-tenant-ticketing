@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 
 from fastapi import Depends, HTTPException, status
@@ -9,9 +10,14 @@ from sqlalchemy.orm import Session
 from . import models
 from .database import get_db
 
-SECRET_KEY = "dev-secret-change-this-later"
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
