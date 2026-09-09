@@ -1,7 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from . import models  # noqa: F401
+from .database import Base, engine
 from .routers import auth, dashboard, incidents, releases, services
+
+Base.metadata.create_all(bind=engine)  # TEMPORARY - creates tables on startup
 
 app = FastAPI(title="Multi-Tenant Ticketing")
 
