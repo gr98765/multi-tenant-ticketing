@@ -1,11 +1,12 @@
 # Relay.io — Multi-Tenant Incident & Release Management Platform
 
-Relay is a multi-tenant SaaS platform for engineering teams to track the
+Relay.io is a multi-tenant SaaS platform for engineering teams to track the
 services they run, log deployments, manage incidents when something breaks,
 and see reliability metrics on a live dashboard — a smaller, self-built
 version of tools like incident.io and Atlassian Statuspage.
 
 **Live demo:** [link once deployed]
+
 **Demo login:** ivanka.gmail.com / testpass123 *(populated with sample data)*
 
 ## What it does
@@ -26,7 +27,7 @@ version of tools like incident.io and Atlassian Statuspage.
 I wanted a project that demonstrated real backend engineering fundamentals —
 authentication, relational database design, multi-tenancy, automated
 testing, and CI/CD rather than another single-user CRUD tutorial clone.
-Relay models a real, validated product category (incident/ops tooling)
+Relay.io models a real, validated product category (incident/ops tooling)
 scoped down to something I could build, test, and fully understand
 end-to-end.
 
@@ -80,4 +81,4 @@ pytest -v
 
 - Alembic migrations (currently schema changes require a manual reset a deliberate simplification during development)
 - Public per-organization status pages
-- Email-based invites instead of manually shared credentials
+- Email-based invites instead of manually shared credentials.
