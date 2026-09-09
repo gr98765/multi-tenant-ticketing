@@ -2,7 +2,7 @@
 
 Relay.io is a multi-tenant SaaS platform for engineering teams to track the
 services they run, log deployments, manage incidents when something breaks,
-and see reliability metrics on a live dashboard — a smaller, self-built
+and see reliability metrics on a live dashboard a smaller, self-built
 version of tools like incident.io and Atlassian Statuspage.
 
 **Live demo:** [link once deployed]

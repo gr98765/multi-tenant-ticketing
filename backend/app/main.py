@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from .routers import auth, dashboard, incidents, releases, services
 
 app = FastAPI(title="Multi-Tenant Ticketing")

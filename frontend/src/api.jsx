@@ -1,7 +1,7 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://multi-tenant-ticketing.onrender.com";
 
 function getToken() {
-  return localStorage.getItem("token");
+    return localStorage.getItem("token");
 }
 
 export async function apiFetch(path, options = {}) {
