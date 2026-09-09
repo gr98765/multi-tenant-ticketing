@@ -1,45 +1,64 @@
-# Multi-Tenant SaaS Platform for Engineering Tickets & Releases
+# Relay.io — Multi-Tenant Incident & Release Management Platform
 
-A small multi-tenant backend service for engineering teams to track deployments
-and incidents. Each organization has its own isolated data; services, releases,
-and tickets, so multiple teams or companies could use the same platform without
-seeing each other's information.
+Relay is a multi-tenant SaaS platform for engineering teams to track the
+services they run, log deployments, manage incidents when something breaks,
+and see reliability metrics on a live dashboard — a smaller, self-built
+version of tools like incident.io and Atlassian Statuspage.
+
+**Live demo:** [link once deployed]
+**Demo login:** ivanka.gmail.com / testpass123 *(populated with sample data)*
 
 ## What it does
 
-- Teams register the services they run (e.g. `payments-api`, `web-app`)
-- Each deployment of a service is logged as a **release**
-- When something breaks, a **ticket** (incident) is opened against a service,
-  optionally linked to the release that may have caused it
-- Team members post timeline **updates** on a ticket while investigating
-- A simple dashboard shows open tickets, average time to resolve, and which
-  services have the most incidents
+- Teams sign up and get their own isolated workspace (organization)
+- Register the services they run (`payments-api`, `web-app`, etc.)
+- Log releases/deployments per service
+- Open incidents when something breaks, with severity levels and a live
+  timeline of updates
+- Assign incidents to team members; members see what's assigned to them
+- Owners can invite teammates as members with restricted permissions
+  (role-based access control)
+- A dashboard shows open incidents, severity breakdown, resolution times,
+  and the oldest unresolved issues at a glance
 
-## Why this project
+## Why I built this
 
-This was built to practice core backend/SaaS engineering concepts:
-- Relational database design (foreign keys, indexes, multi-tenant scoping)
-- REST API design with validation and authentication
-- Containerizing an application for consistent local development
-- Automated testing and CI/CD pipelines
-- Connecting a real frontend to a real backend API
+I wanted a project that demonstrated real backend engineering fundamentals —
+authentication, relational database design, multi-tenancy, automated
+testing, and CI/CD rather than another single-user CRUD tutorial clone.
+Relay models a real, validated product category (incident/ops tooling)
+scoped down to something I could build, test, and fully understand
+end-to-end.
 
 ## Tech stack
 
 | Layer | Tools |
 |---|---|
-| Backend | FastAPI (Python) |
-| Database | PostgreSQL + SQLAlchemy |
-| Auth | JWT-based authentication |
-| Frontend | React (Vite) |
+| Backend | FastAPI (Python), SQLAlchemy |
+| Database | PostgreSQL |
+| Auth | JWT, role-based access control (Owner / Member) |
+| Frontend | React (Vite), React Router |
 | Containerization | Docker, Docker Compose |
-| CI/CD | GitHub Actions |
-| Testing | Pytest (backend) |
+| CI/CD | GitHub Actions (lint with ruff, automated tests with pytest) |
+| Testing | Pytest — including a dedicated multi-tenant isolation test |
+
+## Key technical details
+
+- **Multi-tenancy**: every query is scoped by `organization_id`, verified
+  with an automated test asserting Organization A can never see
+  Organization B's data
+- **Raw SQL analytics endpoint**: the dashboard's per-service reliability
+  stats use a hand-written SQL query (joins, aggregates, time-window
+  filtering) rather than the ORM, for a case where direct SQL was clearer
+- **Role-based permissions**: only account owners can create/delete
+  services or invite teammates; members have read/limited-write access
+- **CI/CD pipeline**: every push runs linting and the full test suite
+  before merge
 
 ## Project structure
-backend/     FastAPI app: models, routes, database logic, tests
-frontend/    React app: pages and components
-.github/     CI/CD workflow (lint, test, build)
+backend/ FastAPI app — models, routes, auth, tests
+frontend/ React app — pages, components, routing
+.github/ CI/CD workflow (lint + test on every push)
 
 
 ## Running locally
@@ -47,7 +66,6 @@ frontend/    React app: pages and components
 ```bash
 docker compose up --build
 ```
-
 - API + docs: http://localhost:8000/docs
 - Frontend: http://localhost:5173
 
@@ -58,18 +76,8 @@ cd backend
 pytest -v
 ```
 
-## Current status
-
-- [x] Project structure and Docker setup
-- [ ] Service, Release, Incident, IncidentUpdate models
-- [ ] Multi-tenant organization scoping
-- [ ] JWT authentication
-- [ ] Dashboard aggregate endpoint
-- [ ] Frontend pages
-- [ ] CI/CD pipeline
-
 ## Future improvements
 
-- Redis caching for dashboard metrics
-- Scheduled job for daily reliability summaries
-- Role-based permissions (owner vs member)
+- Alembic migrations (currently schema changes require a manual reset a deliberate simplification during development)
+- Public per-organization status pages
+- Email-based invites instead of manually shared credentials
