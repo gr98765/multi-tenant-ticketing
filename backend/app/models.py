@@ -52,8 +52,10 @@ class Service(Base):
     organization_id = Column(Integer, ForeignKey("organizations.id"))
 
     organization = relationship("Organization", back_populates="services")
-    releases = relationship("Release", back_populates="service")
-    incidents = relationship("Incident", back_populates="service")
+    releases = relationship(
+        "Release", back_populates="service", cascade="all, delete-orphan")
+    incidents = relationship(
+        "Incident", back_populates="service", cascade="all, delete-orphan")
 
 
 class Release(Base):
@@ -75,12 +77,14 @@ class Incident(Base):
     status = Column(Enum(StatusEnum), default=StatusEnum.OPEN)
     service_id = Column(Integer, ForeignKey("services.id"))
     release_id = Column(Integer, ForeignKey("releases.id"), nullable=True)
+    assigned_to_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     resolved_at = Column(DateTime, nullable=True)
 
     service = relationship("Service", back_populates="incidents")
     release = relationship("Release", back_populates="incidents")
     updates = relationship("IncidentUpdate", back_populates="incident")
+    assigned_to = relationship("User")
 
 
 class IncidentUpdate(Base):

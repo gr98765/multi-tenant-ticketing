@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from . import models
 from .database import get_db
 
-
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     raise RuntimeError("SECRET_KEY environment variable is not set")
@@ -58,3 +57,4 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+

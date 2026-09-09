@@ -42,3 +42,24 @@ def list_releases(
     return db.query(models.Release).join(models.Service).filter(
         models.Service.organization_id == current_user.organization_id
     ).all()
+
+
+@router.delete("/{release_id}", status_code=204)
+def delete_release(
+    release_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    release = (
+        db.query(models.Release)
+        .join(models.Service)
+        .filter(
+            models.Release.id == release_id,
+            models.Service.organization_id == current_user.organization_id,
+        )
+        .first()
+    )
+    if not release:
+        raise HTTPException(status_code=404, detail="Release not found")
+    db.delete(release)
+    db.commit()

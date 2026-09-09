@@ -70,6 +70,31 @@ def update_incident_status(
     return incident
 
 
+@router.patch("/{incident_id}/assign")
+def assign_incident(
+    incident_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    incident = _get_owned_incident(incident_id, db, current_user)
+    incident.assigned_to_id = user_id
+    db.commit()
+    return {"status": "assigned"}
+
+
+@router.get("/assigned-to-me")
+def my_assigned_incidents(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    return db.query(models.Incident).join(models.Service).filter(
+        models.Service.organization_id == current_user.organization_id,
+        models.Incident.assigned_to_id == current_user.id,
+        models.Incident.status != models.StatusEnum.RESOLVED,
+    ).all()
+
+
 @router.post("/{incident_id}/updates", response_model=schemas.IncidentUpdateOut)
 def add_incident_update(
     incident_id: int,
@@ -78,9 +103,15 @@ def add_incident_update(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     incident = _get_owned_incident(incident_id, db, current_user)
+
     db_update = models.IncidentUpdate(
         incident_id=incident.id, message=update.message)
     db.add(db_update)
+
+    # move incident from open to investigating after first update
+    if incident.status == models.StatusEnum.OPEN:
+        incident.status = models.StatusEnum.INVESTIGATING
+
     db.commit()
     db.refresh(db_update)
     return db_update
@@ -96,3 +127,12 @@ def list_incident_updates(
     return db.query(models.IncidentUpdate).filter(
         models.IncidentUpdate.incident_id == incident.id
     ).all()
+
+
+@router.get("/{incident_id}", response_model=schemas.IncidentOut)
+def get_incident(
+    incident_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(auth.get_current_user),
+):
+    return _get_owned_incident(incident_id, db, current_user)

@@ -26,6 +26,56 @@ def get_dashboard(
         models.Incident.resolved_at.isnot(None),
     ).count()
 
+    # Severity breakdown (open incidents only)
+    severity_counts = {"SEV1": 0, "SEV2": 0, "SEV3": 0, "SEV4": 0}
+    rows = db.query(models.Incident.severity).join(models.Service).filter(
+        models.Service.organization_id == org_id,
+        models.Incident.status != models.StatusEnum.RESOLVED,
+    ).all()
+    for (severity,) in rows:
+        severity_counts[severity.value] += 1
+
+    # Recent releases (last 5, across all services in the org)
+    recent_releases_rows = (
+        db.query(models.Release, models.Service.name)
+        .join(models.Service)
+        .filter(models.Service.organization_id == org_id)
+        .order_by(models.Release.deployed_at.desc())
+        .limit(5)
+        .all()
+    )
+    recent_releases = [
+        schemas.RecentRelease(
+            service_name=service_name,
+            version=release.version,
+            deployed_at=release.deployed_at,
+        )
+        for release, service_name in recent_releases_rows
+    ]
+
+    # Needs attention: open incidents, oldest first (longest without resolution)
+    stalled_rows = (
+        db.query(models.Incident, models.Service.name)
+        .join(models.Service)
+        .filter(
+            models.Service.organization_id == org_id,
+            models.Incident.status != models.StatusEnum.RESOLVED,
+        )
+        .order_by(models.Incident.created_at.asc())
+        .limit(5)
+        .all()
+    )
+    needs_attention = [
+        schemas.StalledIncident(
+            id=incident.id,
+            title=incident.title,
+            service_name=service_name,
+            severity=incident.severity.value,
+            created_at=incident.created_at,
+        )
+        for incident, service_name in stalled_rows
+    ]
+
     # Raw SQL: per-service incident count + average resolution time (last 30 days)
     sql = text("""
         SELECT
@@ -40,7 +90,7 @@ def get_dashboard(
         WHERE s.organization_id = :org_id
         GROUP BY s.id, s.name
         ORDER BY incident_count DESC
-        """)
+    """)
     result = db.execute(sql, {"org_id": org_id})
     service_stats = [
         schemas.ServiceIncidentStats(
@@ -54,5 +104,8 @@ def get_dashboard(
     return schemas.DashboardSummary(
         open_incidents=open_incidents,
         resolved_last_30_days=resolved_last_30_days,
+        severity_breakdown=schemas.SeverityBreakdown(**severity_counts),
+        recent_releases=recent_releases,
+        needs_attention=needs_attention,
         service_stats=service_stats,
     )
