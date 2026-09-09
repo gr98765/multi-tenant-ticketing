@@ -53,6 +53,7 @@ class IncidentOut(BaseModel):
     status: StatusEnum
     service_id: int
     release_id: Optional[int]
+    assigned_to_id: int | None
     created_at: datetime
     resolved_at: Optional[datetime]
 
@@ -79,6 +80,8 @@ class IncidentUpdateOut(BaseModel):
     class Config:
         from_attributes = True
 
+# ---- Dashboard ----
+
 
 class ServiceIncidentStats(BaseModel):
     service_name: str
@@ -86,7 +89,31 @@ class ServiceIncidentStats(BaseModel):
     avg_resolution_seconds: Optional[float]
 
 
+class SeverityBreakdown(BaseModel):
+    SEV1: int
+    SEV2: int
+    SEV3: int
+    SEV4: int
+
+
+class RecentRelease(BaseModel):
+    service_name: str
+    version: str
+    deployed_at: datetime
+
+
+class StalledIncident(BaseModel):
+    id: int
+    title: str
+    service_name: str
+    severity: str
+    created_at: datetime
+
+
 class DashboardSummary(BaseModel):
     open_incidents: int
     resolved_last_30_days: int
+    severity_breakdown: SeverityBreakdown
+    recent_releases: list[RecentRelease]
+    needs_attention: list[StalledIncident]
     service_stats: list[ServiceIncidentStats]
