@@ -61,5 +61,9 @@ def delete_release(
     )
     if not release:
         raise HTTPException(status_code=404, detail="Release not found")
+    # Keep the incidents, just unlink them from the deleted release.
+    db.query(models.Incident).filter(
+        models.Incident.release_id == release.id
+    ).update({models.Incident.release_id: None})
     db.delete(release)
     db.commit()

@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboard, listServices } from "../api";
+import { getDashboard, getReliability, listServices } from "../api";
 
 export default function DashboardPage() {
     const [data, setData] = useState(null);
     const [hasServices, setHasServices] = useState(null);
     const [error, setError] = useState("");
+    const [days, setDays] = useState(30);
+    const [reliability, setReliability] = useState(null);
+
+    useEffect(() => {
+        getReliability(days).then(setReliability).catch((err) => setError(err.message));
+    }, [days]);
 
     useEffect(() => {
         Promise.all([getDashboard(), listServices()])
@@ -51,6 +57,10 @@ export default function DashboardPage() {
                 <StatCard label="Open incidents" value={data.open_incidents} />
                 <StatCard label="Resolved (last 30 days)" value={data.resolved_last_30_days} />
             </div>
+
+            {reliability && (
+                <ReliabilitySection report={reliability} days={days} onDaysChange={setDays} />
+            )}
 
             <h3>Open incidents by severity</h3>
             <div style={{ display: "flex", gap: 16, marginBottom: 30 }}>
@@ -164,5 +174,86 @@ function formatDuration(seconds) {
     const minutes = Math.round(seconds / 60);
     if (minutes < 60) return `${minutes}m`;
     const hours = Math.round(minutes / 60);
-    return `${hours}h`;
+    if (hours < 48) return `${hours}h`;
+    return `${Math.round(hours / 24)}d`;
+}
+function percent(rate) {
+    return rate === null || rate === undefined ? "—" : `${Math.round(rate * 100)}%`;
+}
+
+// Industry rule of thumb (DORA): a change failure rate above ~15% means
+// releases are risky enough to look into.
+function rateColor(rate) {
+    if (rate === null || rate === undefined) return "#94a3b8";
+    if (rate <= 0.15) return "#22c55e";
+    if (rate <= 0.3) return "#eab308";
+    return "#ef4444";
+}
+
+function ReliabilitySection({ report, days, onDaysChange }) {
+    const cell = { padding: "8px 4px" };
+    return (
+        <section style={{ marginBottom: 34 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <h3 style={{ margin: 0 }}>Release reliability</h3>
+                <select
+                    value={days}
+                    onChange={(e) => onDaysChange(Number(e.target.value))}
+                    style={{ padding: 6, width: "auto" }}
+                >
+                    <option value={7}>Last 7 days</option>
+                    <option value={30}>Last 30 days</option>
+                    <option value={90}>Last 90 days</option>
+                </select>
+            </div>
+            <p style={{ color: "#94a3b8", fontSize: 13, textAlign: "left", marginTop: 6 }}>
+                How often a deploy causes an incident, and how fast the team recovers.
+            </p>
+
+            <div style={{ display: "flex", gap: 16, margin: "14px 0 18px" }}>
+                <StatCard label={`Deploys (last ${days} days)`} value={report.deploys} />
+                <StatCard
+                    label={`Change failure rate (${report.failed_deploys} of ${report.deploys} deploys)`}
+                    value={<span style={{ color: rateColor(report.change_failure_rate) }}>
+                        {percent(report.change_failure_rate)}
+                    </span>}
+                />
+                <StatCard
+                    label={`Mean time to recovery (${report.resolved_incidents} resolved)`}
+                    value={report.mttr_seconds ? formatDuration(report.mttr_seconds) : "—"}
+                />
+            </div>
+
+            {report.services.length > 0 && (
+                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                    <thead>
+                        <tr style={{ borderBottom: "1px solid #334155" }}>
+                            <th style={cell}>Service</th>
+                            <th style={cell}>Deploys</th>
+                            <th style={cell}>Caused incidents</th>
+                            <th style={cell}>Failure rate</th>
+                            <th style={cell}>Time to recover</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {report.services.map((s) => (
+                            <tr key={s.service_id} style={{ borderBottom: "1px solid #1e293b" }}>
+                                <td style={cell}>
+                                    <Link to={`/services/${s.service_id}`}>{s.service_name}</Link>
+                                </td>
+                                <td style={cell}>{s.deploys}</td>
+                                <td style={cell}>{s.failed_deploys}</td>
+                                <td style={{ ...cell, color: rateColor(s.change_failure_rate), fontWeight: 600 }}>
+                                    {percent(s.change_failure_rate)}
+                                </td>
+                                <td style={cell}>
+                                    {s.mttr_seconds ? formatDuration(s.mttr_seconds) : "—"}
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            )}
+        </section>
+    );
 }

@@ -32,6 +32,15 @@ def create_incident(
     if not service:
         raise HTTPException(status_code=404, detail="Service not found")
 
+    if incident.release_id is not None:
+        release = db.query(models.Release).filter(
+            models.Release.id == incident.release_id,
+            models.Release.service_id == service.id,
+        ).first()
+        if not release:
+            raise HTTPException(
+                status_code=404, detail="Release not found for this service")
+
     db_incident = models.Incident(
         title=incident.title,
         severity=incident.severity,
@@ -64,7 +73,10 @@ def update_incident_status(
     incident = _get_owned_incident(incident_id, db, current_user)
     incident.status = update.status
     if update.status == models.StatusEnum.RESOLVED:
-        incident.resolved_at = datetime.utcnow()
+        if incident.resolved_at is None:
+            incident.resolved_at = datetime.utcnow()
+    else:
+        incident.resolved_at = None
     db.commit()
     db.refresh(incident)
     return incident
@@ -78,12 +90,18 @@ def assign_incident(
     current_user: models.User = Depends(auth.get_current_user),
 ):
     incident = _get_owned_incident(incident_id, db, current_user)
+    assignee = db.query(models.User).filter(
+        models.User.id == user_id,
+        models.User.organization_id == current_user.organization_id,
+    ).first()
+    if not assignee:
+        raise HTTPException(status_code=404, detail="User not found")
     incident.assigned_to_id = user_id
     db.commit()
     return {"status": "assigned"}
 
 
-@router.get("/assigned-to-me")
+@router.get("/assigned-to-me", response_model=list[schemas.IncidentOut])
 def my_assigned_incidents(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),

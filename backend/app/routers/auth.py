@@ -3,7 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from .. import auth, models
+from .. import auth, models, schemas
 from ..database import get_db
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -89,7 +89,7 @@ def get_me(current_user: models.User = Depends(auth.get_current_user)):
     }
 
 
-@router.get("/members")
+@router.get("/members", response_model=list[schemas.MemberOut])
 def list_members(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(auth.get_current_user),
@@ -103,11 +103,8 @@ def list_members(
 def invite_member(
     data: InviteRequest,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner),
 ):
-    if current_user.role != models.RoleEnum.OWNER:
-        raise HTTPException(
-            status_code=403, detail="Only owners can invite members")
 
     existing = db.query(models.User).filter(
         models.User.email == data.email).first()

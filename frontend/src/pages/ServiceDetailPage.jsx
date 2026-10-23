@@ -19,6 +19,7 @@ export default function ServiceDetailPage() {
     const [version, setVersion] = useState("");
     const [incidentTitle, setIncidentTitle] = useState("");
     const [severity, setSeverity] = useState("SEV3");
+    const [causedBy, setCausedBy] = useState("");
     const [error, setError] = useState("");
 
     const isOwnerView = getViewMode() === "owner";
@@ -65,8 +66,11 @@ export default function ServiceDetailPage() {
     async function handleAddIncident(e) {
         e.preventDefault();
         try {
-            await createIncident(incidentTitle, severity, serviceId);
+            await createIncident(
+                incidentTitle, severity, serviceId, causedBy ? Number(causedBy) : null,
+            );
             setIncidentTitle("");
+            setCausedBy("");
             loadData();
         } catch (err) {
             setError(err.message);
@@ -82,6 +86,10 @@ export default function ServiceDetailPage() {
         if (hours < 24) return `${hours}h`;
         const days = Math.round(hours / 24);
         return `${days}d`;
+    }
+
+    function releaseVersion(releaseId) {
+        return releases.find((r) => r.id === releaseId)?.version;
     }
 
     if (!service) return <div style={{ padding: 40 }}>Loading...</div>;
@@ -124,6 +132,21 @@ export default function ServiceDetailPage() {
                         >
                             {SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
+                        <label>Caused by release (optional)</label>
+                        <select
+                            value={causedBy}
+                            onChange={(e) => setCausedBy(e.target.value)}
+                            style={{ width: "100%", padding: 8, marginBottom: 14 }}
+                        >
+                            <option value="">Unknown / not release-related</option>
+                            {[...releases]
+                                .sort((a, b) => new Date(b.deployed_at) - new Date(a.deployed_at))
+                                .map((r) => (
+                                    <option key={r.id} value={r.id}>
+                                        {r.version} — {new Date(r.deployed_at).toLocaleDateString()}
+                                    </option>
+                                ))}
+                        </select>
                         <button type="submit">Open incident</button>
                     </form>
 
@@ -142,6 +165,8 @@ export default function ServiceDetailPage() {
                                     </Link>
                                     <div style={{ fontSize: 13, color: "#94a3b8", textAlign: "right" }}>
                                         {i.severity} · {i.status}
+                                        {i.release_id && releaseVersion(i.release_id) &&
+                                            ` · from ${releaseVersion(i.release_id)}`}
                                         <br />
                                         {i.status === "RESOLVED"
                                             ? `resolved in ${timeElapsed(i.created_at, i.resolved_at)}`

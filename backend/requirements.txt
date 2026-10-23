@@ -1,10 +1,11 @@
 #backend requirements
 fastapi
 uvicorn[standard]
-sqlalchemy
-psycopg2-binary
+sqlalchemy>=2.0
+psycopg[binary]
 pydantic
 pytest
+pytest-cov
 httpx
 ruff==0.9.6
 python-jose[cryptography]

@@ -1,4 +1,4 @@
-const API_BASE = "https://multi-tenant-ticketing.onrender.com";
+const API_BASE = import.meta.env.VITE_API_URL || "https://multi-tenant-ticketing.onrender.com";
 
 function getToken() {
     return localStorage.getItem("token");
@@ -83,10 +83,10 @@ export async function listIncidents() {
     return apiFetch("/incidents/");
 }
 
-export async function createIncident(title, severity, serviceId) {
+export async function createIncident(title, severity, serviceId, releaseId = null) {
     return apiFetch("/incidents/", {
         method: "POST",
-        body: JSON.stringify({ title, severity, service_id: serviceId }),
+        body: JSON.stringify({ title, severity, service_id: serviceId, release_id: releaseId }),
     });
 }
 
@@ -162,4 +162,7 @@ export async function getMyAssignedCount() {
 }
 export async function getMyAssignedIncidents() {
     return apiFetch("/incidents/assigned-to-me");
+}
+export async function getReliability(days = 30) {
+    return apiFetch(`/dashboard/reliability?days=${days}`);
 }

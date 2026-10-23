@@ -12,7 +12,7 @@ router = APIRouter(prefix="/services", tags=["services"])
 def create_service(
     service: schemas.ServiceCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner),
 ):
     db_service = models.Service(
         name=service.name,
@@ -53,7 +53,7 @@ def get_service(
 def delete_service(
     service_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner),
 ):
     service = db.query(models.Service).filter(
         models.Service.id == service_id,
@@ -64,12 +64,3 @@ def delete_service(
     db.delete(service)
     db.commit()
 
-
-@router.get("/members")
-def list_members(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    return db.query(models.User).filter(
-        models.User.organization_id == current_user.organization_id
-    ).all()

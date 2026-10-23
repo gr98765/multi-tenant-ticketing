@@ -1,9 +1,19 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import BaseModel
 
-from .models import SeverityEnum, StatusEnum
+from .models import RoleEnum, SeverityEnum, StatusEnum
+
+# ---- Users ----
+
+
+class MemberOut(BaseModel):
+    id: int
+    email: str
+    role: RoleEnum
+
+    class Config:
+        from_attributes = True
 
 # ---- Service ----
 
@@ -43,7 +53,7 @@ class IncidentCreate(BaseModel):
     title: str
     severity: SeverityEnum
     service_id: int
-    release_id: Optional[int] = None
+    release_id: int | None = None
 
 
 class IncidentOut(BaseModel):
@@ -52,10 +62,10 @@ class IncidentOut(BaseModel):
     severity: SeverityEnum
     status: StatusEnum
     service_id: int
-    release_id: Optional[int]
+    release_id: int | None
     assigned_to_id: int | None
     created_at: datetime
-    resolved_at: Optional[datetime]
+    resolved_at: datetime | None
 
     class Config:
         from_attributes = True
@@ -86,7 +96,7 @@ class IncidentUpdateOut(BaseModel):
 class ServiceIncidentStats(BaseModel):
     service_name: str
     incident_count: int
-    avg_resolution_seconds: Optional[float]
+    avg_resolution_seconds: float | None
 
 
 class SeverityBreakdown(BaseModel):
@@ -117,3 +127,25 @@ class DashboardSummary(BaseModel):
     recent_releases: list[RecentRelease]
     needs_attention: list[StalledIncident]
     service_stats: list[ServiceIncidentStats]
+
+# ---- Release reliability (DORA-style metrics) ----
+
+
+class ServiceReliability(BaseModel):
+    service_id: int
+    service_name: str
+    deploys: int
+    failed_deploys: int
+    change_failure_rate: float | None  # 0..1, None when no deploys
+    resolved_incidents: int
+    mttr_seconds: float | None  # mean time to recovery
+
+
+class ReliabilityReport(BaseModel):
+    window_days: int
+    deploys: int
+    failed_deploys: int
+    change_failure_rate: float | None
+    resolved_incidents: int
+    mttr_seconds: float | None
+    services: list[ServiceReliability]
