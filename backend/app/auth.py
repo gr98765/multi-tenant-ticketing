@@ -1,125 +1,69 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
+import os
+from datetime import datetime, timedelta
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordBearer
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 
-from .. import auth, models, schemas
-from ..database import get_db
+from . import models
+from .database import get_db
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable is not set")
 
-
-class InviteRequest(BaseModel):
-    email: str
-    password: str
-
-
-class SignupRequest(BaseModel):
-    email: str
-    password: str
-    organization_name: str
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24
 
 
-class LoginRequest(BaseModel):
-    email: str
-    password: str
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
-class TokenResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
 
-@router.post("/signup", response_model=TokenResponse)
-def signup(data: SignupRequest, db: Session = Depends(get_db)):
-    existing = db.query(models.User).filter(
-        models.User.email == data.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
 
-    existing_org = db.query(models.Organization).filter(
-        models.Organization.name == data.organization_name
-    ).first()
-    if existing_org:
+
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db),
+):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+    user = db.query(models.User).filter(models.User.id == int(user_id)).first()
+    if user is None:
+        raise credentials_exception
+    return user
+
+
+def require_owner(current_user: models.User = Depends(get_current_user)):
+    """Dependency for actions only an organization owner may take."""
+    if current_user.role != models.RoleEnum.OWNER:
         raise HTTPException(
-            status_code=400,
-            detail="Organization name already taken. Please choose a different name.",
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organization owners can do this",
         )
-
-    org = models.Organization(name=data.organization_name)
-    db.add(org)
-    db.commit()
-    db.refresh(org)
-
-    user = models.User(
-        email=data.email,
-        hashed_password=auth.hash_password(data.password),
-        role=models.RoleEnum.OWNER,
-        organization_id=org.id,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    token = auth.create_access_token({"sub": str(user.id)})
-    return {"access_token": token}
-
-
-@router.post("/login", response_model=TokenResponse)
-def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
-    db: Session = Depends(get_db),
-):
-    user = db.query(models.User).filter(
-        models.User.email == form_data.username).first()
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=401, detail="Invalid email or password")
-
-    token = auth.create_access_token({"sub": str(user.id)})
-    return {"access_token": token}
-
-
-@router.get("/me")
-def get_me(current_user: models.User = Depends(auth.get_current_user)):
-    return {
-        "email": current_user.email,
-        "role": current_user.role.value,
-        "organization_name": current_user.organization.name,
-    }
-
-
-@router.get("/members", response_model=list[schemas.MemberOut])
-def list_members(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
-):
-    return db.query(models.User).filter(
-        models.User.organization_id == current_user.organization_id
-    ).all()
-
-
-@router.post("/invite", response_model=TokenResponse)
-def invite_member(
-    data: InviteRequest,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.require_owner),
-):
-
-    existing = db.query(models.User).filter(
-        models.User.email == data.email).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    new_user = models.User(
-        email=data.email,
-        hashed_password=auth.hash_password(data.password),
-        role=models.RoleEnum.MEMBER,
-        organization_id=current_user.organization_id,
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    token = auth.create_access_token({"sub": str(new_user.id)})
-    return {"access_token": token}
+    return current_user
