@@ -1,6 +1,9 @@
 import os
 from contextlib import asynccontextmanager
 
+import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -10,12 +13,18 @@ from .routers import auth, dashboard, incidents, releases, services
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # No migrations yet: create any missing tables on startup (idempotent).
+    # No migrations yet: create any missing tables and indexes on startup.
+    # create_all skips indexes on tables that already exist, so add those
+    # one by one (checkfirst makes this safe to run on every start).
     Base.metadata.create_all(bind=engine)
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
     yield
 
 
-app = FastAPI(title="Relay.io — Incident & Release Management", lifespan=lifespan)
+app = FastAPI(title="Relay.io — Incident & Release Management",
+              lifespan=lifespan)
 
 # Comma-separated list of allowed frontend origins, e.g.
 # CORS_ORIGINS="https://relay-io.vercel.app,http://localhost:5173"

@@ -9,6 +9,21 @@ from ..database import get_db
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+RECENT_RELEASES_SQL = text("""
+    SELECT s.name AS service_name, r.version, r.deployed_at
+    FROM services s
+    CROSS JOIN LATERAL (
+        SELECT version, deployed_at
+        FROM releases
+        WHERE service_id = s.id
+        ORDER BY deployed_at DESC
+        LIMIT 5
+    ) r
+    WHERE s.organization_id = :org_id
+    ORDER BY r.deployed_at DESC
+    LIMIT 5
+""")
+
 
 @router.get("/", response_model=schemas.DashboardSummary)
 def get_dashboard(
@@ -37,22 +52,12 @@ def get_dashboard(
     for (severity,) in rows:
         severity_counts[severity.value] += 1
 
-    # Recent releases (last 5, across all services in the org)
-    recent_releases_rows = (
-        db.query(models.Release, models.Service.name)
-        .join(models.Service)
-        .filter(models.Service.organization_id == org_id)
-        .order_by(models.Release.deployed_at.desc())
-        .limit(5)
-        .all()
-    )
+    # Recent releases (last 5 across the org). Take each service's newest 5
+    # via the (service_id, deployed_at) index, then the top 5 of those,
+    # instead of sorting every release in the table.
     recent_releases = [
-        schemas.RecentRelease(
-            service_name=service_name,
-            version=release.version,
-            deployed_at=release.deployed_at,
-        )
-        for release, service_name in recent_releases_rows
+        schemas.RecentRelease(**row._mapping)
+        for row in db.execute(RECENT_RELEASES_SQL, {"org_id": org_id})
     ]
 
     # Needs attention: open incidents, oldest first (longest without resolution)
@@ -127,11 +132,16 @@ RELIABILITY_SQL = text("""
         SELECT
             r.id,
             r.service_id,
-            EXISTS (
-                SELECT 1 FROM incidents i WHERE i.release_id = r.id
-            ) AS caused_incident
+            hit.release_id IS NOT NULL AS caused_incident
         FROM releases r
         JOIN services s ON s.id = r.service_id
+        -- LATERAL + LIMIT 1: one index lookup per release in this tenant's
+        -- window, instead of hashing every release_id in the incidents table.
+        LEFT JOIN LATERAL (
+            SELECT i.release_id FROM incidents i
+            WHERE i.release_id = r.id
+            LIMIT 1
+        ) hit ON TRUE
         WHERE s.organization_id = :org_id
           AND r.deployed_at >= :since
     ),

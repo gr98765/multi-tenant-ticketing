@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, Enum, ForeignKey, Integer, String
+from sqlalchemy import Column, DateTime, Enum, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import relationship
 
 from .database import Base
@@ -34,13 +34,18 @@ class Organization(Base):
     services = relationship("Service", back_populates="organization")
 
 
+# PostgreSQL does not index foreign-key columns automatically. Every
+# dashboard query filters by tenant (organization -> service) and by time,
+# so these indexes let it read one tenant's rows instead of the whole table.
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, nullable=False, index=True)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(RoleEnum), default=RoleEnum.MEMBER)
-    organization_id = Column(Integer, ForeignKey("organizations.id"))
+    organization_id = Column(Integer, ForeignKey(
+        "organizations.id"), index=True)
 
     organization = relationship("Organization", back_populates="users")
 
@@ -49,7 +54,8 @@ class Service(Base):
     __tablename__ = "services"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    organization_id = Column(Integer, ForeignKey("organizations.id"))
+    organization_id = Column(Integer, ForeignKey(
+        "organizations.id"), index=True)
 
     organization = relationship("Organization", back_populates="services")
     releases = relationship(
@@ -60,6 +66,10 @@ class Service(Base):
 
 class Release(Base):
     __tablename__ = "releases"
+    __table_args__ = (
+        # "this service's releases in the last N days"
+        Index("ix_releases_service_deployed", "service_id", "deployed_at"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     service_id = Column(Integer, ForeignKey("services.id"))
     version = Column(String, nullable=False)
@@ -71,6 +81,13 @@ class Release(Base):
 
 class Incident(Base):
     __tablename__ = "incidents"
+    __table_args__ = (
+        # "did this release cause an incident?" (change failure rate)
+        Index("ix_incidents_release_id", "release_id"),
+        # "this service's incidents created / resolved in the last N days"
+        Index("ix_incidents_service_created", "service_id", "created_at"),
+        Index("ix_incidents_service_resolved", "service_id", "resolved_at"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
     severity = Column(Enum(SeverityEnum), default=SeverityEnum.SEV3)
@@ -90,7 +107,7 @@ class Incident(Base):
 class IncidentUpdate(Base):
     __tablename__ = "incident_updates"
     id = Column(Integer, primary_key=True, index=True)
-    incident_id = Column(Integer, ForeignKey("incidents.id"))
+    incident_id = Column(Integer, ForeignKey("incidents.id"), index=True)
     message = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
