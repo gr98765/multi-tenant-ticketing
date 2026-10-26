@@ -48,7 +48,22 @@ export async function login(email, password) {
 
     const data = await response.json();
     localStorage.setItem("token", data.access_token);
+    await syncViewMode();
     return data;
+}
+
+// One click into the shared demo company (logged in as a member).
+export async function demoLogin() {
+    const data = await apiFetch("/auth/demo", { method: "POST" });
+    localStorage.setItem("token", data.access_token);
+    await syncViewMode();
+    return data;
+}
+
+// Start each session in the view that matches the account's real role.
+async function syncViewMode() {
+    const me = await apiFetch("/auth/me");
+    setViewMode(me.role === "OWNER" ? "owner" : "member");
 }
 
 export async function signup(email, password, organizationName) {
@@ -57,6 +72,7 @@ export async function signup(email, password, organizationName) {
         body: JSON.stringify({ email, password, organization_name: organizationName }),
     });
     localStorage.setItem("token", data.access_token);
+    setViewMode("owner");
     return data;
 }
 
