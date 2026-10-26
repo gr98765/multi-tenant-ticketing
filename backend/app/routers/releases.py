@@ -48,7 +48,7 @@ def list_releases(
 def delete_release(
     release_id: int,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(auth.get_current_user),
+    current_user: models.User = Depends(auth.require_owner),
 ):
     release = (
         db.query(models.Release)

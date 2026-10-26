@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { login } from "../api";
+import DemoButton from "../components/DemoButton";
 
 export default function LoginPage() {
     const [email, setEmail] = useState("");
@@ -49,6 +50,12 @@ export default function LoginPage() {
             <p>
                 No account? <Link to="/signup">Sign up</Link>
             </p>
+            <div style={{ borderTop: "1px solid #1e293b", paddingTop: 16, marginTop: 8 }}>
+                <p style={{ color: "#94a3b8", fontSize: 13, marginBottom: 10 }}>
+                    Just looking around?
+                </p>
+                <DemoButton style={{ width: "100%" }} />
+            </div>
         </div>
     );
 }

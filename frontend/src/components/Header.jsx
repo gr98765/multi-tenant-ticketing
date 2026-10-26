@@ -15,6 +15,7 @@ export default function Header() {
     const assignedRef = useRef(null);
 
     useEffect(() => {
+        setViewModeState(getViewMode());
         if (isLoggedIn()) {
             getMe()
                 .then((data) => {

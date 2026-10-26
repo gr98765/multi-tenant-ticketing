@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import auth, models, schemas
 from ..database import get_db
+from ..demo import DEMO_EMAIL
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -76,6 +77,18 @@ def login(
         raise HTTPException(
             status_code=401, detail="Invalid email or password")
 
+    token = auth.create_access_token({"sub": str(user.id)})
+    return {"access_token": token}
+
+
+@router.post("/demo", response_model=TokenResponse)
+def demo_login(db: Session = Depends(get_db)):
+    """One-click login to the shared demo company, as a MEMBER."""
+    user = db.query(models.User).filter(
+        models.User.email == DEMO_EMAIL).first()
+    if not user:
+        raise HTTPException(
+            status_code=404, detail="The demo isn't available yet.")
     token = auth.create_access_token({"sub": str(user.id)})
     return {"access_token": token}
 

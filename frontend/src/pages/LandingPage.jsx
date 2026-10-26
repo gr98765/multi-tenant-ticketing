@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import DemoButton from "../components/DemoButton";
 
 const FEATURES = [
     {
@@ -14,8 +15,8 @@ const FEATURES = [
         desc: "Open, assign, and resolve incidents with a live timeline.",
     },
     {
-        title: "Status Pages",
-        desc: "Share real-time status with your customers, publicly.",
+        title: "Reliability metrics",
+        desc: "See which services' releases break things and how fast you recover.",
     },
 ];
 
@@ -50,12 +51,16 @@ export default function LandingPage() {
                     Relay.io helps engineering teams stay on top of their services
                     from deployment to resolution.
                 </p>
-                <div className="fade-in-3" style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+                <div className="fade-in-3" style={{ display: "flex", gap: 12, justifyContent: "center", alignItems: "flex-start" }}>
+                    <DemoButton />
                     <Link to="/signup"><button>Sign up free</button></Link>
                     <Link to="/login">
                         <button style={{ background: "#1e293b" }}>Log in</button>
                     </Link>
                 </div>
+                <p className="fade-in-3" style={{ color: "#64748b", fontSize: 13, marginTop: 14 }}>
+                    No sign-up needed: explore a sample company with synthetic data.
+                </p>
             </div>
 
             <div className="fade-in-4" style={{ maxWidth: 900, margin: "0 auto", padding: "0 20px 80px" }}>

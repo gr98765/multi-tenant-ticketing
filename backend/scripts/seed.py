@@ -7,7 +7,7 @@ level, some deploys cause incidents, and incidents take a realistic
 
 Two modes:
 
-  # Small demo company for the live site (one org, ~90 days)
+  # Replace the demo company on the live site (safe: touches only that org)
   python -m scripts.seed --demo
 
   # Large dataset for performance testing (wipes the database first!)
@@ -18,6 +18,7 @@ inserting one row at a time.
 """
 import argparse
 import random
+import secrets
 import time
 from datetime import datetime, timedelta
 
@@ -25,6 +26,7 @@ from sqlalchemy import text
 
 from app import auth
 from app.database import Base, engine
+from app.demo import DEMO_EMAIL, DEMO_ORG, DEMO_OWNER_EMAIL
 
 SEVERITIES = ["SEV1", "SEV2", "SEV3", "SEV4"]
 SEVERITY_WEIGHTS = [0.05, 0.15, 0.45, 0.35]
@@ -55,10 +57,6 @@ UPDATE_MESSAGES = [
     "Root cause found: missing database index on a new query.",
 ]
 
-DEMO_ORG = "Acme Corp (Demo)"
-DEMO_EMAIL = "demo@relay.io"
-DEMO_PASSWORD = "demo-relay-2026"
-
 
 def _recovery_minutes(rng, severity):
     # Log-normal: most incidents resolve near the median, a few drag on.
@@ -68,14 +66,20 @@ def _recovery_minutes(rng, severity):
 def generate(rng, n_orgs, days, now, demo=False, with_updates=False):
     """Yield table rows as plain tuples. IDs are assigned here."""
     orgs, users, services, releases, incidents, updates = [], [], [], [], [], []
-    owner_hash = auth.hash_password(DEMO_PASSWORD if demo else "seed-password")
+    # Seeded accounts get a random password nobody knows; the demo member is
+    # reached only through the one-click demo login.
+    password_hash = auth.hash_password(secrets.token_urlsafe(24))
     service_id = release_id = incident_id = update_id = 0
     start = now - timedelta(days=days)
 
     for org_id in range(1, n_orgs + 1):
         orgs.append((org_id, DEMO_ORG if demo else f"org-{org_id:04d}"))
-        email = DEMO_EMAIL if demo else f"owner@org-{org_id:04d}.example"
-        users.append((org_id, email, owner_hash, "OWNER", org_id))
+        if demo:
+            users.append((1, DEMO_OWNER_EMAIL, password_hash, "OWNER", org_id))
+            users.append((2, DEMO_EMAIL, password_hash, "MEMBER", org_id))
+        else:
+            email = f"owner@org-{org_id:04d}.example"
+            users.append((org_id, email, password_hash, "OWNER", org_id))
 
         # Company size is skewed: many small teams, a few large ones.
         n_services = 6 if demo else min(
@@ -83,7 +87,9 @@ def generate(rng, n_orgs, days, now, demo=False, with_updates=False):
         for name in rng.sample(SERVICE_NAMES, n_services):
             service_id += 1
             services.append((service_id, name, org_id))
-            deploys_per_day = rng.uniform(0.3, 4.0)
+            # Demo services deploy less often so the lists stay readable.
+            deploys_per_day = rng.uniform(
+                0.2, 1.2) if demo else rng.uniform(0.3, 4.0)
             # Change failure rate per service: mostly healthy, a few risky.
             risk = min(0.45, rng.betavariate(1.5, 9))
 
@@ -121,6 +127,12 @@ def generate(rng, n_orgs, days, now, demo=False, with_updates=False):
                     timedelta(seconds=rng.uniform(0, days * 86400))
                 incidents.append(_incident(rng, incident_id, service_id, None,
                                            created, now, rng.choice(OTHER_CAUSES)))
+
+    if demo:
+        # Hand the unresolved incidents out, so "Assigned to you" has items.
+        open_ids = {row[0] for row in incidents if row[3] != "RESOLVED"}
+        incidents = [row[:6] + ((2 if row[0] % 2 else 1),) + row[7:]
+                     if row[0] in open_ids else row for row in incidents]
 
     return orgs, users, services, releases, incidents, updates
 
@@ -171,7 +183,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--demo", action="store_true",
-                        help="create one demo company (adds to existing data)")
+                        help="replace the demo company; leaves all other data alone")
     parser.add_argument("--orgs", type=int, default=200)
     parser.add_argument("--days", type=int, default=365)
     parser.add_argument("--seed", type=int, default=42,
@@ -189,11 +201,7 @@ def main():
     began = time.perf_counter()
 
     if args.demo:
-        with engine.begin() as conn:
-            exists = conn.execute(text("SELECT 1 FROM organizations WHERE name = :n"),
-                                  {"n": DEMO_ORG}).first()
-        if exists:
-            raise SystemExit(f"'{DEMO_ORG}' already exists.")
+        delete_demo_org()
         rows = generate(rng, 1, 90, now, demo=True, with_updates=True)
         # Demo data is added next to real signups, so shift ids past existing ones.
         rows = _offset_ids(rows)
@@ -212,7 +220,29 @@ def main():
         print(f"{table:<17} {len(table_rows):>10,}")
     print(f"generated in {generated:.1f}s, loaded in {total - generated:.1f}s")
     if args.demo:
-        print(f"demo login: {DEMO_EMAIL} / {DEMO_PASSWORD}")
+        print(
+            f"demo company '{DEMO_ORG}' is ready (one-click login as {DEMO_EMAIL})")
+
+
+def delete_demo_org():
+    """Remove the demo company and everything in it, children first."""
+    params = {"name": DEMO_ORG}
+    org_services = """SELECT s.id FROM services s JOIN organizations o
+                      ON o.id = s.organization_id WHERE o.name = :name"""
+    statements = [
+        f"""DELETE FROM incident_updates WHERE incident_id IN
+            (SELECT id FROM incidents WHERE service_id IN ({org_services}))""",
+        f"DELETE FROM incidents WHERE service_id IN ({org_services})",
+        f"DELETE FROM releases WHERE service_id IN ({org_services})",
+        "DELETE FROM services WHERE organization_id IN "
+        "(SELECT id FROM organizations WHERE name = :name)",
+        "DELETE FROM users WHERE organization_id IN "
+        "(SELECT id FROM organizations WHERE name = :name)",
+        "DELETE FROM organizations WHERE name = :name",
+    ]
+    with engine.begin() as conn:
+        for statement in statements:
+            conn.execute(text(statement), params)
 
 
 def _offset_ids(rows):
@@ -231,7 +261,7 @@ def _offset_ids(rows):
         [(a + u, e, h, role, org + o) for a, e, h, role, org in users],
         [(a + s, n, org + o) for a, n, org in services],
         [(a + r, svc + s, v, t) for a, svc, v, t in releases],
-        [(a + i, ti, sev, st, svc + s, rid(rel, r), asg, c, res)
+        [(a + i, ti, sev, st, svc + s, rid(rel, r), rid(asg, u), c, res)
          for a, ti, sev, st, svc, rel, asg, c, res in incidents],
         [(a + d, inc + i, m, t) for a, inc, m, t in updates],
     )
