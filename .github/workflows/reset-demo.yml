@@ -1,0 +1,31 @@
+name: Reset demo data
+
+# Every 3 days: wipe the demo company and generate a fresh one, so anything
+# visitors changed is cleaned up and the dates stay current.
+# It also touches the database regularly, which keeps the free Supabase
+# project from pausing (it pauses after 7 days of inactivity).
+on:
+  schedule:
+    - cron: "17 9 */3 * *"   # 09:17 UTC on days 1, 4, 7, ... of each month
+  workflow_dispatch:        # also adds a "Run workflow" button in the Actions tab
+
+jobs:
+  reset-demo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Replace the demo company
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: not-used-by-this-job
+        run: python -m scripts.seed --demo --seed ${{ github.run_number }}
