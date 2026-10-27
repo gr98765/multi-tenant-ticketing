@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from .database import Base, engine
 from .routers import auth, dashboard, incidents, releases, services
@@ -17,11 +18,27 @@ async def lifespan(app: FastAPI):
     for table in Base.metadata.sorted_tables:
         for index in table.indexes:
             index.create(bind=engine, checkfirst=True)
+    enable_row_level_security()
     yield
 
 
-app = FastAPI(title="Relay.io — Incident & Release Management",
-              lifespan=lifespan)
+def enable_row_level_security():
+    """Lock every table against database-level API access.
+
+    Hosts like Supabase auto-publish tables in the public schema through a
+    REST API that anyone with the project's public key can call. With row
+    level security on and no policies, that API sees no rows at all. This
+    backend connects as the table owner, which bypasses RLS, so the app keeps
+    working and all access still goes through FastAPI's auth checks.
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            conn.execute(text(f'ALTER TABLE "{table.name}" ENABLE ROW LEVEL SECURITY'))
+
+
+app = FastAPI(title="Relay.io — Incident & Release Management", lifespan=lifespan)
 
 # Comma-separated list of allowed frontend origins, e.g.
 # CORS_ORIGINS="https://relay-io.vercel.app,http://localhost:5173"
